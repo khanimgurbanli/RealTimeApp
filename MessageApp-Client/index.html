@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <script src="signalr.min.js"></script>
+    <script src="jquery.min.js"></script>
+    <script>
+        $(document).ready(() => {
+            const connection = new signalR.HubConnectionBuilder()
+                .withUrl("https://localhost:7221/hubaction")
+                .withAutomaticReconnect([1000, 1000, 2000])
+                .build();
+
+            async function start() {
+                try {
+                    await connection.start();
+                } catch (error) {
+                    setTimeout(() => start(), 2000);
+                }
+            }
+
+            start();
+
+            function animation() {
+                status.fadeIn(2000, () => {
+                    setTimeout(() => {
+                        status.fadeOut(2000);
+                    }, 2000)
+                });
+            }
+
+            const status = $("#status");
+            connection.onreconnecting(error => {
+                status.css("background-color", "blue");
+                status.css("color", "white");
+                status.html("Connecting...");
+                animation();
+            });
+
+            connection.onreconnected(connectedId => {
+                status.css("background-color", "green");
+                status.css("color", "white");
+                status.html("Connected.");
+                animation();
+            });
+
+            connection.onclose(connectedId => {
+                status.css("background-color", "red");
+                status.css("color", "white");
+                status.html("Connection failed");
+                animation();
+            });
+
+            connection.on("userJoined", connectedId => {
+                status.html(`${connectedId} connected`);
+                status.css("background-color", "green");
+                animation();
+            });
+
+            connection.on("userLeaved", connectedId => {
+                status.html(`${connectedId} leaved`);
+                status.css("background-color", "red");
+                animation();
+            });
+
+            connection.on("clients", clientsData => {
+                let text = "";
+                $.each(clientsData, (index, item) => {
+                    text += `<li>${item}</li>`;
+                });
+                $(`#clients`).html(text);
+            });
+
+            $("#btnSend").click(() => {
+                let message = $("#txtMessage").val();
+                connection.invoke("SendMessageAsync", message).catch(error => console.log(error));
+            })
+
+            connection.on("receiveMessage", message => {
+                $("#messages").append(message + "<br>");
+            });
+        });
+    </script>
+</head>
+
+<body>
+    <div id="status" style="display: none;"></div>
+    <input type="text" id="txtMessage">
+    <button id="btnSend">Send</button>
+    <div id="messages">
+        <ul id="clients">
+
+        </ul>
+    </div>
+</body>
+
+</html>
